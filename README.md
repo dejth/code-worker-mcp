@@ -10,9 +10,9 @@ The primary agent owns planning, architecture, task decomposition, and final rev
 
 ## Current status
 
-TypeScript tooling, a validated configuration loader, a placeholder entry point, and CI are implemented. Running `node dist/server.js` prints an explanation to stderr and exits with status 1; it does not start an MCP server.
+TypeScript tooling, a validated configuration loader, bounded Ollama execution, a placeholder entry point, and CI are implemented. Running `node dist/server.js` prints an explanation to stderr and exits with status 1; it does not start an MCP server or call Ollama.
 
-The planned tools are `generate`, `review`, `refactor`, and `test`. The `test` tool will propose tests, not execute them. Provider execution, client registration, tool examples, timeout enforcement, and an optional Ollama smoke test will be documented when implemented. There is currently no supported MCP client installation flow.
+The planned tools are `generate`, `review`, `refactor`, and `test`. The `test` tool will propose tests, not execute them. MCP wiring, client registration, tool examples, and an optional Ollama smoke test will be documented when implemented. There is currently no supported MCP client installation flow.
 
 ## Development
 
@@ -32,9 +32,9 @@ Validation does not require Ollama, a GPU, model downloads, or inference network
 
 ## Privacy and configuration
 
-The current entry point does not read repository context, write files, execute commands, or contact a provider. Development build and test commands are separate from worker functionality.
+The current entry point does not read repository context, write files, execute commands, or contact a provider. The Ollama provider is a library called only by tests today. Development build and test commands are separate from worker functionality.
 
-Future tools will send only caller-supplied context to the configured provider and return proposals without applying them. A non-loopback provider endpoint may send code off the machine. No telemetry or remote fallback is planned.
+Future tools will send only caller-supplied context to this provider and return proposals without applying them. No telemetry or remote fallback is implemented.
 
 Machine-local configuration belongs in ignored `config.local.json`, `.env`, or `.local/`. Never commit credentials, private code/context, logs, or model files.
 
@@ -50,6 +50,8 @@ Machine-local configuration belongs in ignored `config.local.json`, `.env`, or `
 | `endpoint` | `CODE_WORKER_ENDPOINT` | `http://127.0.0.1:11434`; HTTP(S), no URL credentials |
 | `contextTarget` | `CODE_WORKER_CONTEXT_TARGET` | `16384`; positive safe integer |
 | `timeoutMs` | `CODE_WORKER_TIMEOUT_MS` | `120000`; integer from 1 to 2147483647 (Node timer range) |
+| `maxInputBytes` | `CODE_WORKER_MAX_INPUT_BYTES` | `1048576`; positive safe integer |
+| `maxOutputBytes` | `CODE_WORKER_MAX_OUTPUT_BYTES` | `1048576`; positive safe integer |
 | `think` | `CODE_WORKER_THINK` | Unspecified; JSON boolean or exact env `true`/`false` |
 
 Numeric environment values accept decimal digits only. Empty values are invalid, not a request for defaults. An explicitly selected file must be readable and contain a JSON object, even if environment variables supply all settings. Relative paths resolve from the process working directory. `.env` files are not automatically loaded.
@@ -60,7 +62,11 @@ Copy `config.example.json` to ignored `config.local.json` and replace `REPLACE_W
 CODE_WORKER_CONFIG=./config.local.json node --input-type=module -e 'import { loadConfig } from "./dist/config.js"; await loadConfig(); console.error("Configuration is valid");'
 ```
 
-An omitted `think` remains unspecified for later capability handling; the loader does not guess support or send a setting to a model. Non-loopback endpoints are permitted and may send code off-machine once provider execution is implemented. Errors report a field or file-failure category without echoing values, paths, or file contents. These settings are validated only; capability checks and runtime limit enforcement belong to subsequent work.
+The Ollama provider checks `/api/show` capability metadata before generation. If the model reports `thinking`, omitted `think` sends `false`; an explicit boolean is sent as configured. Any explicit `think` value for a model that does not report the capability fails as unsupported. No model-name guessing is used.
+
+Generation uses `/api/generate` with `stream: false` and `options.num_ctx` set to `contextTarget`. `maxInputBytes` rejects oversized UTF-8 prompts before any request. `maxOutputBytes` bounds response reading even when HTTP delivers multiple chunks. Timeout and caller cancellation abort both metadata and generation requests. Redirects are rejected so supplied context cannot be silently forwarded to another endpoint. Incomplete generation, `done_reason: "length"`, and oversized response bodies are reported as truncation and never as successful output.
+
+Provider errors expose only normalized categories: invalid input, unsupported capability, timeout, cancellation, provider error, invalid provider response, or truncation. Raw provider bodies and request values are not included. Non-loopback endpoints are permitted and will send prompts off-machine when the provider is called. The placeholder server still does not load configuration, start MCP, or run inference; Issue #6 will wire tools to this provider.
 
 ## Contributing
 

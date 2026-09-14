@@ -7,6 +7,8 @@ export type Config = {
   endpoint: string;
   contextTarget: number;
   timeoutMs: number;
+  maxInputBytes: number;
+  maxOutputBytes: number;
   think?: boolean;
 };
 
@@ -16,6 +18,8 @@ const variables = {
   endpoint: 'CODE_WORKER_ENDPOINT',
   contextTarget: 'CODE_WORKER_CONTEXT_TARGET',
   timeoutMs: 'CODE_WORKER_TIMEOUT_MS',
+  maxInputBytes: 'CODE_WORKER_MAX_INPUT_BYTES',
+  maxOutputBytes: 'CODE_WORKER_MAX_OUTPUT_BYTES',
   think: 'CODE_WORKER_THINK',
 } as const;
 
@@ -54,12 +58,14 @@ export async function loadConfig(
     endpoint: 'http://127.0.0.1:11434',
     contextTarget: 16384,
     timeoutMs: 120000,
+    maxInputBytes: 1048576,
+    maxOutputBytes: 1048576,
     ...file,
   };
   for (const [field, variable] of Object.entries(variables)) {
     const value = env[variable];
     if (value === undefined) continue;
-    if (field === 'contextTarget' || field === 'timeoutMs') {
+    if (field === 'contextTarget' || field === 'timeoutMs' || field === 'maxInputBytes' || field === 'maxOutputBytes') {
       if (!/^\d+$/.test(value)) invalid(field);
       values[field] = Number(value);
     } else if (field === 'think') {
@@ -70,7 +76,7 @@ export async function loadConfig(
     }
   }
 
-  const { provider, model, endpoint, contextTarget, timeoutMs, think } = values;
+  const { provider, model, endpoint, contextTarget, timeoutMs, maxInputBytes, maxOutputBytes, think } = values;
   if (provider !== 'ollama') invalid('provider');
   if (typeof model !== 'string' || model.trim() === '') invalid('model');
   if (typeof endpoint !== 'string' || endpoint.trim() !== endpoint) invalid('endpoint');
@@ -88,6 +94,13 @@ export async function loadConfig(
   if (typeof timeoutMs !== 'number' || !Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2147483647) {
     invalid('timeoutMs');
   }
+  if (typeof maxInputBytes !== 'number' || !Number.isSafeInteger(maxInputBytes) || maxInputBytes <= 0) {
+    invalid('maxInputBytes');
+  }
+  if (typeof maxOutputBytes !== 'number' || !Number.isSafeInteger(maxOutputBytes) || maxOutputBytes <= 0) {
+    invalid('maxOutputBytes');
+  }
   if (think !== undefined && typeof think !== 'boolean') invalid('think');
-  return { provider, model, endpoint, contextTarget, timeoutMs, ...(think === undefined ? {} : { think }) };
+  return { provider, model, endpoint, contextTarget, timeoutMs, maxInputBytes, maxOutputBytes,
+    ...(think === undefined ? {} : { think }) };
 }

@@ -8,6 +8,7 @@ import { loadConfig } from '../dist/config.js';
 const defaults = {
   provider: 'ollama', model: 'example-model', endpoint: 'http://127.0.0.1:11434',
   contextTarget: 16384, timeoutMs: 120000,
+  maxInputBytes: 1048576, maxOutputBytes: 1048576,
 };
 
 test('defaults require explicit model and leave think unspecified', async () => {
@@ -38,7 +39,8 @@ test('file selection, precedence, invalid files and resolved values', async (t) 
     ['provider', 'other'], ['model', ''], ['model', 7], ['endpoint', 'not-a-url'],
     ['endpoint', 'file:///tmp/model'], ['endpoint', 'https://user:private-marker@example.invalid'],
     ['contextTarget', 0], ['contextTarget', -1], ['contextTarget', 1.5], ['contextTarget', '42'],
-    ['contextTarget', Number.MAX_SAFE_INTEGER + 1], ['timeoutMs', 2147483648], ['timeoutMs', null], ['think', null], ['think', 'false'],
+    ['contextTarget', Number.MAX_SAFE_INTEGER + 1], ['timeoutMs', 2147483648], ['timeoutMs', null],
+    ['maxInputBytes', 0], ['maxOutputBytes', 1.5], ['think', null], ['think', 'false'],
   ]) {
     await writeFile(path, JSON.stringify({ model: 'example-model', [field]: value }));
     await assert.rejects(loadConfig(env), { message: `Invalid configuration field: ${field}` });
@@ -51,7 +53,8 @@ test('environment overrides reject malformed numbers, booleans and empty values'
   for (const [key, values] of Object.entries({
     MODEL: ['', '  '], PROVIDER: ['', 'other'], ENDPOINT: ['', 'https://user:secret@example.invalid'],
     CONTEXT_TARGET: ['', ' ', '1.5', '-1', '0', 'Infinity', '1e3', '0x10'],
-    TIMEOUT_MS: ['0', '2147483648'], THINK: ['', '0', 'False', 'yes'],
+    TIMEOUT_MS: ['0', '2147483648'], MAX_INPUT_BYTES: ['0', '-1'], MAX_OUTPUT_BYTES: ['', '1.5'],
+    THINK: ['', '0', 'False', 'yes'],
   })) {
     for (const value of values) {
       await assert.rejects(loadConfig({ CODE_WORKER_MODEL: 'example-model', [`CODE_WORKER_${key}`]: value }), /Invalid configuration field/);

@@ -3,5 +3,7 @@
   "model": "REPLACE_WITH_YOUR_LOCAL_MODEL",
   "endpoint": "http://127.0.0.1:11434",
   "contextTarget": 16384,
-  "timeoutMs": 120000
+  "timeoutMs": 120000,
+  "maxInputBytes": 1048576,
+  "maxOutputBytes": 1048576
 }
