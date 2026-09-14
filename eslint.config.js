@@ -6,7 +6,7 @@ export default tseslint.config(
   js.configs.recommended,
   tseslint.configs.recommended,
   { languageOptions: { globals: {
-    AbortController: 'readonly', console: 'readonly', process: 'readonly', ReadableStream: 'readonly',
+    AbortController: 'readonly', AbortSignal: 'readonly', console: 'readonly', process: 'readonly', ReadableStream: 'readonly',
     Response: 'readonly', TextEncoder: 'readonly',
   } } },
 );

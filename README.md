@@ -1,6 +1,6 @@
 # code-worker-mcp
 
-A planned open-source MCP server for delegating bounded coding tasks to developer-selected local models.
+An open-source MCP server for delegating bounded coding tasks to developer-selected local models.
 
 ```text
 Primary AI agent -> code-worker-mcp -> configured provider -> local model
@@ -10,9 +10,9 @@ The primary agent owns planning, architecture, task decomposition, and final rev
 
 ## Current status
 
-TypeScript tooling, a validated configuration loader, bounded Ollama execution, a placeholder entry point, and CI are implemented. Running `node dist/server.js` prints an explanation to stderr and exits with status 1; it does not start an MCP server or call Ollama.
+The local stdio MCP server, validated configuration, bounded Ollama execution, and four proposal-only tools are implemented. Client-specific registration and a real Ollama smoke test remain follow-up work.
 
-The planned tools are `generate`, `review`, `refactor`, and `test`. The `test` tool will propose tests, not execute them. MCP wiring, client registration, tool examples, and an optional Ollama smoke test will be documented when implemented. There is currently no supported MCP client installation flow.
+The tools are `generate`, `review`, `refactor`, and `test`. They return unverified proposals or findings. The `test` tool proposes tests; it does not execute them. There is currently no verified client-specific installation flow.
 
 ## Development
 
@@ -26,21 +26,21 @@ npm run typecheck
 npm run build
 ```
 
-`npm test` compiles the source and uses Node.js's built-in test runner to check configuration loading and the placeholder process. Build output goes to `dist/`. CI runs all four checks on pull requests and pushes to `develop`, `release`, and `main`.
+`npm test` compiles the source and uses Node.js's built-in test runner. Build output goes to `dist/`. CI runs all four checks on pull requests and pushes to `develop`, `release`, and `main`.
 
 Validation does not require Ollama, a GPU, model downloads, or inference network access. Dependency installation requires npm registry access or a populated cache.
 
 ## Privacy and configuration
 
-The current entry point does not read repository context, write files, execute commands, or contact a provider. The Ollama provider is a library called only by tests today. Development build and test commands are separate from worker functionality.
+The server reads only its explicitly selected configuration file. Tools do not inspect the working directory, write files, execute commands, apply patches, or mutate Git. Development build and test commands are separate from worker functionality.
 
-Future tools will send only caller-supplied context to this provider and return proposals without applying them. No telemetry or remote fallback is implemented.
+Tools send only the task and context supplied in their arguments to the configured provider. Model output is untrusted and is returned without claims that code compiles or tests pass. No telemetry or remote fallback is implemented.
 
 Machine-local configuration belongs in ignored `config.local.json`, `.env`, or `.local/`. Never commit credentials, private code/context, logs, or model files.
 
 ## Configuration loader
 
-`loadConfig(env = process.env)` in `src/config.ts` loads and validates settings. The placeholder server does not call it yet; no MCP or inference is started. Precedence is **environment overrides > selected JSON file > defaults**, applied per field. Unknown JSON keys are rejected; known fields are validated after overrides.
+`loadConfig(env = process.env)` in `src/config.ts` loads and validates settings before the MCP server starts. Precedence is **environment overrides > selected JSON file > defaults**, applied per field. Unknown JSON keys are rejected; known fields are validated after overrides.
 
 | JSON field | Environment variable | Default / constraint |
 | --- | --- | --- |
@@ -66,7 +66,29 @@ The Ollama provider checks `/api/show` capability metadata before generation. If
 
 Generation uses `/api/generate` with `stream: false` and `options.num_ctx` set to `contextTarget`. `maxInputBytes` rejects oversized UTF-8 prompts before any request. `maxOutputBytes` bounds response reading even when HTTP delivers multiple chunks. Timeout and caller cancellation abort both metadata and generation requests. Redirects are rejected so supplied context cannot be silently forwarded to another endpoint. Incomplete generation, `done_reason: "length"`, and oversized response bodies are reported as truncation and never as successful output.
 
-Provider errors expose only normalized categories: invalid input, unsupported capability, timeout, cancellation, provider error, invalid provider response, or truncation. Raw provider bodies and request values are not included. Non-loopback endpoints are permitted and will send prompts off-machine when the provider is called. The placeholder server still does not load configuration, start MCP, or run inference; Issue #6 will wire tools to this provider.
+Provider errors expose only normalized categories: invalid input, unsupported capability, timeout, cancellation, provider error, invalid provider response, or truncation. Raw provider bodies and request values are not included. Non-loopback endpoints are permitted and send prompts off-machine when a tool is called.
+
+## MCP server and tools
+
+Build first, select configuration, then run the stdio server. Stdout is reserved for MCP protocol messages; startup errors go to stderr. `SIGINT` and `SIGTERM` close the server. The current MCP SDK forwards client cancellation to the active provider request; disconnect behavior is covered more fully by Issue #7.
+
+```sh
+npm run build
+CODE_WORKER_CONFIG=./config.local.json npm start
+```
+
+The implementation uses `@modelcontextprotocol/sdk` 1.30 and its current `registerTool` API with explicit Zod schemas. The shapes below show minimal `arguments` values for `tools/call`; the surrounding JSON-RPC request is supplied by the MCP client.
+
+```json
+{"name":"generate","arguments":{"task":"Add input validation","context":"export function parse(value: string) {}"}}
+{"name":"review","arguments":{"task":"Find correctness defects","code":"export const divide = (a, b) => a / b"}}
+{"name":"refactor","arguments":{"task":"Remove duplication without changing behavior","code":"const a = x + 1; const b = x + 1"}}
+{"name":"test","arguments":{"task":"Cover empty and malformed input","code":"export function parse(value: string) {}"}}
+```
+
+`task` and `code` must be nonempty. `generate.context` is optional; no repository content is attached automatically. The complete provider prompt must fit `maxInputBytes`, otherwise the tool returns `invalid_input` before provider execution.
+
+Successful and failed tools return the same structured fields: `status`, `content`, `model`, `truncated`, `warnings`, and `durationMs` when available. Failed calls set MCP `isError`; truncation remains an error with `truncated: true`. Prompts differ by task: review asks for findings, refactor requires behavior preservation, and test explicitly forbids execution or pass claims.
 
 ## Contributing
 
