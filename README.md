@@ -90,6 +90,12 @@ The implementation uses `@modelcontextprotocol/sdk` 1.30 and its current `regist
 
 Successful and failed tools return the same structured fields: `status`, `content`, `model`, `truncated`, `warnings`, and `durationMs` when available. Failed calls set MCP `isError`; truncation remains an error with `truncated: true`. Prompts differ by task: review asks for findings, refactor requires behavior preservation, and test explicitly forbids execution or pass claims.
 
+## Verification boundaries
+
+The deterministic integration test starts the built stdio server with the official MCP client and a loopback fake Ollama endpoint. It verifies initialization, discovery, all four calls, timeout, client cancellation and recovery, malformed/oversized/truncated provider responses, pre-transmission input limits, clean shutdown, protocol parsing, redacted diagnostics, and an unchanged temporary workspace. Normal CI uses no external network or real model.
+
+The current runtime source was also checked for write and command-execution paths: `src/config.ts` only reads the explicitly selected configuration file, and `src/providers/ollama.ts` only uses `fetch` with redirects disabled. Runtime source contains no filesystem-write, child-process, shell, or Git API. This evidence covers current code and tested behavior; it is not a security certification or a claim about model output quality.
+
 ## Contributing
 
 GitHub Issues define accepted scope. Start a `tasks/<issue>-<description>` branch from `develop` and open its PR against `develop`. Promote reviewed changes through PRs in this order:
