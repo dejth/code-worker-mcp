@@ -13,3 +13,11 @@ test('server validates configuration before starting and keeps stdout protocol-o
   assert.equal(result.stdout, '');
   assert.match(result.stderr, /Invalid configuration field: model/);
 });
+
+test('optional smoke command refuses to infer a model', () => {
+  const result = spawnSync(process.execPath, ['scripts/smoke.mjs'], { encoding: 'utf8', timeout: 5_000, env: {} });
+  assert.ifError(result.error);
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /requires CODE_WORKER_CONFIG or CODE_WORKER_MODEL/);
+});
