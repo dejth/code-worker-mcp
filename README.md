@@ -1,16 +1,16 @@
 # code-worker-mcp
 
-An open-source MCP server for delegating bounded coding tasks to developer-selected local models.
+An open-source MCP server for delegating bounded coding tasks from the ChatGPT desktop app (Codex) to developer-selected local models.
 
 ```text
 Primary AI agent -> code-worker-mcp -> configured provider -> local model
 ```
 
-The primary agent owns planning, architecture, task decomposition, and final review. The worker will return proposals for supplied context. Ollama is the initial planned provider; no specific model is required.
+ChatGPT Desktop (Codex) is the primary client. The core server uses standard MCP over stdio so it can also work with other compatible clients. The primary agent owns planning, architecture, task decomposition, and final review. The worker returns proposals for supplied context. Ollama is the initial provider; no specific model is required.
 
 ## Current status
 
-The local stdio MCP server, validated configuration, bounded Ollama execution, four proposal-only tools, Codex registration instructions, and an opt-in real-model smoke command are implemented.
+The local stdio MCP server, validated configuration, bounded Ollama execution, four proposal-only tools, ChatGPT Desktop (Codex) registration instructions, and an opt-in real-model smoke command are implemented.
 
 The tools are `generate`, `review`, `refactor`, and `test`. They return unverified proposals or findings. The `test` tool proposes tests; it does not execute them.
 
@@ -102,11 +102,19 @@ The implementation uses `@modelcontextprotocol/sdk` 1.30 and its current `regist
 
 Successful and failed tools return the same structured fields: `status`, `content`, `model`, `truncated`, `warnings`, and `durationMs` when available. Failed calls set MCP `isError`; truncation remains an error with `truncated: true`. Prompts differ by task: review asks for findings, refactor requires behavior preservation, and test explicitly forbids execution or pass claims.
 
-## Codex setup
+## ChatGPT Desktop (Codex) setup
 
-This is the only client setup currently verified. The example follows the [official Codex MCP documentation](https://developers.openai.com/codex/mcp/) for local STDIO servers and was checked with `codex-cli 0.146.0` on 2026-09-15 using an isolated config: `codex mcp add` wrote the expected command, argument, and redacted environment entry, and `codex mcp list` reported the server enabled.
+The local ChatGPT desktop app is the primary client for this project. ChatGPT on the web does not use local Codex MCP configuration. These steps follow the [official Codex MCP documentation](https://developers.openai.com/codex/mcp/) for local STDIO servers.
 
-Build the project, then use absolute paths for Node.js, the built server, and local config:
+Build the project and create `config.local.json` first. Then open **Settings → MCP servers → Add server** in the desktop app:
+
+1. Enter `code-worker` as the name and choose **STDIO**.
+2. Set the command to the absolute path of the Node.js executable.
+3. Add the absolute path of `dist/server.js` as the command argument.
+4. Add `CODE_WORKER_CONFIG` as an environment variable with the absolute path of `config.local.json`.
+5. Save, restart the app, and enter `/mcp` in a chat to confirm that the server and its tools are connected.
+
+The same registration can be performed from a terminal:
 
 ```sh
 codex mcp add code-worker \
@@ -115,7 +123,7 @@ codex mcp add code-worker \
 codex mcp list
 ```
 
-Codex CLI, the IDE extension, and the ChatGPT desktop app on the same Codex host share MCP configuration. Restart the client after adding the server; use `/mcp` to inspect it. The equivalent `config.toml` entry is:
+Codex CLI, the IDE extension, and the ChatGPT desktop app on the same host share MCP configuration. The equivalent `~/.codex/config.toml` entry is:
 
 ```toml
 [mcp_servers.code-worker]
@@ -128,6 +136,24 @@ CODE_WORKER_CONFIG = "/absolute/path/to/code-worker-mcp/config.local.json"
 ```
 
 Keep Codex `tool_timeout_sec` longer than the worker's `timeoutMs` so provider timeouts return the worker's normalized `timeout` result before the client cancels the call. The official default is 60 seconds; the example pairs 130 seconds with the worker's 120-second default.
+
+### Try the tools in ChatGPT Desktop
+
+After `/mcp` shows `code-worker`, ask Codex to use a specific tool. For example:
+
+```text
+Use code-worker generate to propose a TypeScript function that parses a non-empty project name. Return a proposal only; do not apply changes.
+
+Use code-worker review to find correctness problems in this code: export const divide = (a, b) => a / b
+
+Use code-worker refactor to remove duplication without changing behavior in this code: const a = x + 1; const b = x + 1
+
+Use code-worker test to propose tests for empty and malformed input for this code: export function parse(value: string) {}
+```
+
+The worker returns proposals or findings to Codex. Codex remains responsible for reviewing the result and deciding whether to apply or verify it.
+
+The CLI registration command above was checked with `codex-cli 0.146.0` on 2026-09-15 using an isolated configuration: `codex mcp add` wrote the expected command, argument, and redacted environment entry, and `codex mcp list` reported the server enabled. The desktop UI steps are documented from the official instructions and have not yet been independently click-tested in this project.
 
 ## Optional real Ollama smoke test
 
