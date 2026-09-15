@@ -1,0 +1,29 @@
+{
+  "name": "code-worker-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local MCP server for bounded coding work with developer-selected models",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node dist/server.js",
+    "smoke": "npm run build && node scripts/smoke.mjs",
+    "test": "npm run build && node --test",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.4",
+    "eslint": "^10.10.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.6.5"
+  }
+}
